@@ -14,6 +14,8 @@ from mmdet.datasets import build_dataloader
 from mmdet.models import RPN
 from .env import get_root_logger
 
+from apex import amp
+
 
 def parse_losses(losses):
     log_vars = OrderedDict()
@@ -185,6 +187,10 @@ def _non_dist_train(model, dataset, cfg, validate=False):
     model = MMDataParallel(model, device_ids=range(cfg.gpus)).cuda()
     # build runner
     optimizer = build_optimizer(model, cfg.optimizer)
+
+    # try apex optimization for TITAN RTX
+    # model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
+
     runner = Runner(model, batch_processor, optimizer, cfg.work_dir,
                     cfg.log_level)
     runner.register_training_hooks(cfg.lr_config, cfg.optimizer_config,

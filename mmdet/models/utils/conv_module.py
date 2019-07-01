@@ -5,10 +5,12 @@ from mmcv.cnn import kaiming_init, constant_init
 
 from .conv_ws import ConvWS2d
 from .norm import build_norm_layer
+from .coord_conv import CoordConv2d
 
 conv_cfg = {
     'Conv': nn.Conv2d,
     'ConvWS': ConvWS2d,
+    'CoordConv': CoordConv2d,
     # TODO: octave conv
 }
 
@@ -107,7 +109,8 @@ class ConvModule(nn.Module):
             padding=padding,
             dilation=dilation,
             groups=groups,
-            bias=bias)
+            bias=bias
+        )
         # export the attributes of self.conv to a higher level for convenience
         self.in_channels = self.conv.in_channels
         self.out_channels = self.conv.out_channels
