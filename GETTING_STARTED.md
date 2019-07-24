@@ -63,6 +63,7 @@ Here is an example of building the model and test given images.
 
 ```python
 from mmdet.apis import init_detector, inference_detector, show_result
+import mmcv
 
 config_file = 'configs/faster_rcnn_r50_fpn_1x.py'
 checkpoint_file = 'checkpoints/faster_rcnn_r50_fpn_1x_20181010-3d1b3351.pth'
@@ -79,6 +80,12 @@ show_result(img, result, model.CLASSES)
 imgs = ['test1.jpg', 'test2.jpg']
 for i, result in enumerate(inference_detector(model, imgs)):
     show_result(imgs[i], result, model.CLASSES, out_file='result_{}.jpg'.format(i))
+
+# test a video and show the results
+video = mmcv.VideoReader('video.mp4')
+for frame in video:
+    result = inference_detector(model, frame)
+    show_result(frame, result, model.CLASSES, wait_time=1)
 ```
 
 
@@ -150,8 +157,10 @@ In `mmdet/datasets/my_dataset.py`:
 
 ```python
 from .coco import CocoDataset
+from .registry import DATASETS
 
 
+@DATASETS.register_module
 class MyDataset(CocoDataset):
 
     CLASSES = ('a', 'b', 'c', 'd', 'e')
@@ -213,7 +222,7 @@ There are two ways to work with custom datasets.
 
 We basically categorize model components into 4 types.
 
-- backbone: usually a FCN network to extract feature maps, e.g., ResNet, MobileNet.
+- backbone: usually an FCN network to extract feature maps, e.g., ResNet, MobileNet.
 - neck: the component between backbones and heads, e.g., FPN, PAFPN.
 - head: the component for specific tasks, e.g., bbox prediction and mask prediction.
 - roi extractor: the part for extracting RoI features from feature maps, e.g., RoI Align.
@@ -228,7 +237,7 @@ import torch.nn as nn
 from ..registry import BACKBONES
 
 
-@BACKBONES.register
+@BACKBONES.register_module
 class MobileNet(nn.Module):
 
     def __init__(self, arg1, arg2):

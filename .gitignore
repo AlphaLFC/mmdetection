@@ -115,4 +115,6 @@ data
 *.pkl.json
 *.log.json
 work_dirs/
-pretrained_models/
+
+# Pytorch
+*.pth
