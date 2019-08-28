@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 from mmdet.core import bbox_overlaps
 from ..registry import LOSSES
@@ -69,6 +70,23 @@ def bounded_iou_loss(pred, target, beta=0.2, eps=1e-3):
     return loss
 
 
+@weighted_loss
+def giou_loss(pred, target, slop_point=0.1):
+    """Generalized Intersection over Union: A Metric and A Loss for Bounding Box Regression.
+    http://cn.arxiv.org/pdf/1902.09630.pdf
+
+    Args:
+        pred (tensor): Predicted bboxes.
+        target (tensor): Target bboxes.
+        slop_point (float): piecewise function point.
+    """
+    assert slop_point > 0
+    ious = bbox_overlaps(pred, target, mode="giou", is_aligned=True)
+    loss = torch.where(ious > slop_point, -ious.log(),
+                       -1 / slop_point * ious + 1 - np.log(slop_point))
+    return loss
+
+
 @LOSSES.register_module
 class IoULoss(nn.Module):
 
@@ -129,6 +147,38 @@ class BoundedIoULoss(nn.Module):
             weight,
             beta=self.beta,
             eps=self.eps,
+            reduction=reduction,
+            avg_factor=avg_factor,
+            **kwargs)
+        return loss
+
+
+@LOSSES.register_module
+class GIoULoss(nn.Module):
+
+    def __init__(self, slot_point=0.1, reduction='mean', loss_weight=1.0):
+        super(GIoULoss, self).__init__()
+        self.slot_point = slot_point
+        self.reduction = reduction
+        self.loss_weight = loss_weight
+
+    def forward(self,
+                pred,
+                target,
+                weight=None,
+                avg_factor=None,
+                reduction_override=None,
+                **kwargs):
+        if weight is not None and not torch.any(weight > 0):
+            return (pred * weight).sum()  # 0
+        assert reduction_override in (None, 'none', 'mean', 'sum')
+        reduction = (
+            reduction_override if reduction_override else self.reduction)
+        loss = self.loss_weight * giou_loss(
+            pred,
+            target,
+            weight,
+            slot_point=self.slot_point,
             reduction=reduction,
             avg_factor=avg_factor,
             **kwargs)

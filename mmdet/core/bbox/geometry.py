@@ -13,7 +13,8 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False):
         bboxes2 (Tensor): shape (n, 4), if is_aligned is ``True``, then m and n
             must be equal.
         mode (str): "iou" (intersection over union) or iof (intersection over
-            foreground).
+            foreground), or
+            "giou" http://cn.arxiv.org/pdf/1902.09630.pdf.
 
     Returns:
         ious(Tensor): shape (m, n) if is_aligned == False else shape (m, 1)
@@ -42,6 +43,15 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False):
             area2 = (bboxes2[:, 2] - bboxes2[:, 0] + 1) * (
                 bboxes2[:, 3] - bboxes2[:, 1] + 1)
             ious = overlap / (area1 + area2 - overlap)
+        elif mode == 'giou':
+            lt_c = torch.min(bboxes1[:, :2], bboxes2[:, :2])  # [rows, 2]
+            rb_c = torch.max(bboxes1[:, 2:], bboxes2[:, 2:])  # [rows, 2]
+            wh_c = rb_c - lt_c + 1
+            area2 = (bboxes2[:, 2] - bboxes2[:, 0] + 1) * (
+                    bboxes2[:, 3] - bboxes2[:, 1] + 1)
+            union = area1 + area2 - overlap
+            area3 = wh_c[:, 0] * wh_c[:, 1]
+            ious = overlap / union - (area3 - union) / area3
         else:
             ious = overlap / area1
     else:
@@ -57,6 +67,15 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False):
             area2 = (bboxes2[:, 2] - bboxes2[:, 0] + 1) * (
                 bboxes2[:, 3] - bboxes2[:, 1] + 1)
             ious = overlap / (area1[:, None] + area2 - overlap)
+        elif mode == 'giou':
+            lt_c = torch.min(bboxes1[:, None, :2], bboxes2[:, :2])  # [rows, 2]
+            rb_c = torch.max(bboxes1[:, None, 2:], bboxes2[:, 2:])  # [rows, 2]
+            wh_c = rb_c - lt_c + 1
+            area2 = (bboxes2[:, 2] - bboxes2[:, 0] + 1) * (
+                    bboxes2[:, 3] - bboxes2[:, 1] + 1)
+            union = area1[:, None] + area2 - overlap
+            area3 = wh_c[:, 0] * wh_c[:, 1]
+            ious = overlap / union - (area3 - union) / area3
         else:
             ious = overlap / (area1[:, None])
 
