@@ -156,9 +156,9 @@ class BoundedIoULoss(nn.Module):
 @LOSSES.register_module
 class GIoULoss(nn.Module):
 
-    def __init__(self, slot_point=0.1, reduction='mean', loss_weight=1.0):
+    def __init__(self, slop_point=0.1, reduction='mean', loss_weight=1.0):
         super(GIoULoss, self).__init__()
-        self.slot_point = slot_point
+        self.slop_point = slop_point
         self.reduction = reduction
         self.loss_weight = loss_weight
 
@@ -178,7 +178,7 @@ class GIoULoss(nn.Module):
             pred,
             target,
             weight,
-            slot_point=self.slot_point,
+            slop_point=self.slop_point,
             reduction=reduction,
             avg_factor=avg_factor,
             **kwargs)
