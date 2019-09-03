@@ -20,7 +20,7 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False):
         ious(Tensor): shape (m, n) if is_aligned == False else shape (m, 1)
     """
 
-    assert mode in ['iou', 'iof']
+    assert mode in ['iou', 'iof', 'giou']
 
     rows = bboxes1.size(0)
     cols = bboxes2.size(0)
