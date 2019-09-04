@@ -21,7 +21,7 @@ class FCOSPlusHead(nn.Module):
                  strides=(8, 16, 32, 64, 128),
                  regress_ranges=((-1, 64), (64, 128), (128, 256), (256, 512),
                                  (512, INF)),
-                 scale=6,
+                 # scale=6,
                  loss_cls=dict(
                      type='FocalLoss',
                      use_sigmoid=True,
@@ -44,7 +44,7 @@ class FCOSPlusHead(nn.Module):
         self.stacked_convs = stacked_convs
         self.strides = strides
         self.regress_ranges = regress_ranges
-        self.scale = scale
+        # self.scale = scale
         self.loss_cls = build_loss(loss_cls)
         self.loss_bbox = build_loss(loss_bbox)
         self.loss_centerness = build_loss(loss_centerness)
@@ -84,6 +84,8 @@ class FCOSPlusHead(nn.Module):
         self.fcos_reg = nn.Conv2d(self.feat_channels, 4, 3, padding=1)
         self.fcos_centerness = nn.Conv2d(self.feat_channels, 1, 3, padding=1)
 
+        self.scales = nn.ModuleList([Scale(1.0) for _ in self.strides])
+
     def init_weights(self):
         for m in self.cls_convs:
             normal_init(m.conv, std=0.01)
@@ -95,9 +97,9 @@ class FCOSPlusHead(nn.Module):
         normal_init(self.fcos_centerness, std=0.01)
 
     def forward(self, feats):
-        return multi_apply(self.forward_single, feats, self.strides)
+        return multi_apply(self.forward_single, feats, self.scales, self.strides)
 
-    def forward_single(self, x, stride):
+    def forward_single(self, x, scale, stride):
         cls_feat = x
         reg_feat = x
 
@@ -111,7 +113,7 @@ class FCOSPlusHead(nn.Module):
         centerness = self.fcos_centerness(reg_feat)
         # scale the bbox_pred of different level
         # float to avoid overflow when enabling FP16
-        bbox_pred = (self.fcos_reg(reg_feat).float() * self.scale + self.scale * 0.5) * stride
+        bbox_pred = scale(self.fcos_reg(reg_feat)).float().exp() * stride
         return cls_score, bbox_pred, centerness
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'centernesses'))
@@ -359,10 +361,11 @@ class FCOSPlusHead(nn.Module):
         # CENTER SAMPLING HERE!!!
         quater_ws = (gt_bboxes[..., 2] - gt_bboxes[..., 0]) / 4
         quater_hs = (gt_bboxes[..., 3] - gt_bboxes[..., 1]) / 4
-        left = xs - gt_bboxes[..., 0] + quater_ws
+        left = xs - gt_bboxes[..., 0] - quater_ws
         right = gt_bboxes[..., 2] - xs - quater_ws
-        top = ys - gt_bboxes[..., 1] + quater_hs
+        top = ys - gt_bboxes[..., 1] - quater_hs
         bottom = gt_bboxes[..., 3] - ys - quater_hs
+
         bbox_targets = torch.stack((left, top, right, bottom), -1)
 
         # condition1: inside a gt bbox, center sampling

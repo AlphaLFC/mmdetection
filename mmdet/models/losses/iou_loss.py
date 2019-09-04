@@ -71,19 +71,16 @@ def bounded_iou_loss(pred, target, beta=0.2, eps=1e-3):
 
 
 @weighted_loss
-def giou_loss(pred, target, slop_point=0.1):
+def giou_loss(pred, target):
     """Generalized Intersection over Union: A Metric and A Loss for Bounding Box Regression.
     http://cn.arxiv.org/pdf/1902.09630.pdf
 
     Args:
         pred (tensor): Predicted bboxes.
         target (tensor): Target bboxes.
-        slop_point (float): piecewise function point.
     """
-    assert slop_point > 0
     ious = bbox_overlaps(pred, target, mode="giou", is_aligned=True)
-    loss = torch.where(ious > slop_point, -ious.log(),
-                       -1 / slop_point * ious + 1 - np.log(slop_point))
+    loss = 1 - ious
     return loss
 
 
@@ -156,9 +153,8 @@ class BoundedIoULoss(nn.Module):
 @LOSSES.register_module
 class GIoULoss(nn.Module):
 
-    def __init__(self, slop_point=0.1, reduction='mean', loss_weight=1.0):
+    def __init__(self, reduction='mean', loss_weight=1.0):
         super(GIoULoss, self).__init__()
-        self.slop_point = slop_point
         self.reduction = reduction
         self.loss_weight = loss_weight
 
@@ -178,7 +174,6 @@ class GIoULoss(nn.Module):
             pred,
             target,
             weight,
-            slop_point=self.slop_point,
             reduction=reduction,
             avg_factor=avg_factor,
             **kwargs)
