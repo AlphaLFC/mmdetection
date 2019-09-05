@@ -21,7 +21,6 @@ class FCOSPlusHead(nn.Module):
                  strides=(8, 16, 32, 64, 128),
                  regress_ranges=((-1, 64), (64, 128), (128, 256), (256, 512),
                                  (512, INF)),
-                 # scale=6,
                  loss_cls=dict(
                      type='FocalLoss',
                      use_sigmoid=True,
@@ -44,7 +43,6 @@ class FCOSPlusHead(nn.Module):
         self.stacked_convs = stacked_convs
         self.strides = strides
         self.regress_ranges = regress_ranges
-        # self.scale = scale
         self.loss_cls = build_loss(loss_cls)
         self.loss_bbox = build_loss(loss_bbox)
         self.loss_centerness = build_loss(loss_centerness)
@@ -113,7 +111,7 @@ class FCOSPlusHead(nn.Module):
         centerness = self.fcos_centerness(reg_feat)
         # scale the bbox_pred of different level
         # float to avoid overflow when enabling FP16
-        bbox_pred = scale(self.fcos_reg(reg_feat)).float().exp() * stride
+        bbox_pred = scale(self.fcos_reg(reg_feat)).float() * stride
         return cls_score, bbox_pred, centerness
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'centernesses'))
@@ -358,18 +356,21 @@ class FCOSPlusHead(nn.Module):
         xs = xs[:, None].expand(num_points, num_gts)
         ys = ys[:, None].expand(num_points, num_gts)
 
-        # CENTER SAMPLING HERE!!!
-        quater_ws = (gt_bboxes[..., 2] - gt_bboxes[..., 0]) / 4
-        quater_hs = (gt_bboxes[..., 3] - gt_bboxes[..., 1]) / 4
-        left = xs - gt_bboxes[..., 0] - quater_ws
-        right = gt_bboxes[..., 2] - xs - quater_ws
-        top = ys - gt_bboxes[..., 1] - quater_hs
-        bottom = gt_bboxes[..., 3] - ys - quater_hs
-
+        left = xs - gt_bboxes[..., 0]
+        right = gt_bboxes[..., 2] - xs
+        top = ys - gt_bboxes[..., 1]
+        bottom = gt_bboxes[..., 3] - ys
         bbox_targets = torch.stack((left, top, right, bottom), -1)
 
         # condition1: inside a gt bbox, center sampling
-        inside_gt_bbox_mask = bbox_targets.min(-1)[0] > 0
+        quater_ws = (gt_bboxes[..., 2] - gt_bboxes[..., 0]) / 4
+        quater_hs = (gt_bboxes[..., 3] - gt_bboxes[..., 1]) / 4
+        left_center = left - quater_ws
+        right_center = right - quater_ws
+        top_center = top - quater_hs
+        bottom_center = bottom - quater_hs
+        bbox_targets_center = torch.stack((left_center, top_center, right_center, bottom_center), -1)
+        inside_gt_bbox_mask = bbox_targets_center.min(-1)[0] > 0
 
         # condition2: limit the regression range for each location
         max_regress_distance = bbox_targets.max(-1)[0]
