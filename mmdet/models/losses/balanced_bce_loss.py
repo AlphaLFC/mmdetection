@@ -84,7 +84,10 @@ class BalancedBCEWithLogitsLoss(nn.Module):
         self.reduction = reduction
         self.loss_weight = loss_weight
 
-    def forward(self, pred, label):
+    def forward(self, pred, label,
+                weight=None,
+                avg_factor=None,
+                reduction_override=None):
         return self.loss_weight * balanced_bce_with_logits_loss(
             pred, label,
             rand_neg_ratio=self.rand_neg_ratio,
