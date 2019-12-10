@@ -37,7 +37,7 @@ model = dict(
             ohem_neg_ratio=2,
             ohem_pos_ratio=0.5,
             reduction='mean',
-            loss_weight=10),
+            loss_weight=80),
         loss_bbox=dict(type='GIoULoss', loss_weight=1.0),
         loss_centerness=dict(
             type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)))

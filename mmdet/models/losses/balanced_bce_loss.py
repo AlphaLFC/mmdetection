@@ -33,8 +33,8 @@ def balanced_bce_with_logits_loss(pred, label,
     # assert pred.shape == label.shape
     flattened_pred = pred.flatten()
     flattened_label = F.one_hot(label, num_classes=81)[..., 1:].flatten().float()
-    pos_inds = flattened_label.nonzero().reshape(-1).cpu()
-    neg_inds = (flattened_label == 0).nonzero().reshape(-1).cpu()
+    pos_inds = flattened_label.nonzero().reshape(-1)
+    neg_inds = (flattened_label == 0).nonzero().reshape(-1)
     rand_neg_num = max(
         int(len(pos_inds) * rand_neg_ratio),
         int(flattened_label.nelement() * least_neg_percent)
@@ -44,8 +44,8 @@ def balanced_bce_with_logits_loss(pred, label,
         ohem_pos_num = int(len(pos_inds) * ohem_pos_ratio)
         neg_pred, neg_label = flattened_pred[neg_inds], flattened_label[neg_inds]
         pos_pred, pos_label = flattened_pred[pos_inds], flattened_label[pos_inds]
-        sorted_neg_inds = neg_pred.argsort(descending=True).cpu()
-        sorted_pos_inds = pos_pred.argsort().cpu()
+        sorted_neg_inds = neg_pred.argsort(descending=True)
+        sorted_pos_inds = pos_pred.argsort()
         ohem_neg_inds = sorted_neg_inds[:ohem_neg_num]
         ohem_pos_inds = sorted_pos_inds[:ohem_pos_num]
         rand_sorted_neg_inds = _random_choice(sorted_neg_inds, rand_neg_num)
