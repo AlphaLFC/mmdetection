@@ -23,7 +23,7 @@ model = dict(
         num_outs=5,
         relu_before_extra_convs=True),
     bbox_head=dict(
-        type='FCOSPlusHead',
+        type='FCOSHead',
         num_classes=81,
         in_channels=256,
         stacked_convs=4,
@@ -33,11 +33,11 @@ model = dict(
             type='BalancedBCEWithLogitsLoss',
             rand_neg_ratio=4,
             least_neg_percent=0.05,
-            use_ohem=True,
-            ohem_neg_ratio=2,
+            use_ohem=False,
+            ohem_neg_ratio=1,
             ohem_pos_ratio=0.5,
             reduction='mean',
-            loss_weight=10),
+            loss_weight=1.0),
         loss_bbox=dict(type='GIoULoss', loss_weight=1.0),
         loss_centerness=dict(
             type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)))
@@ -109,7 +109,7 @@ data = dict(
 # optimizer
 optimizer = dict(
     type='SGD',
-    lr=0.01,
+    lr=0.001,
     momentum=0.9,
     weight_decay=0.0001,
     paramwise_options=dict(bias_lr_mult=2., bias_decay_mult=0.))
@@ -120,7 +120,7 @@ lr_config = dict(
     warmup='constant',
     warmup_iters=500,
     warmup_ratio=1.0 / 3,
-    step=[5, 8, 11])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -135,7 +135,7 @@ total_epochs = 12
 device_ids = range(1)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/fcos_plus_mstrain_r50_caffe_fpn_gn_fp16_1x_1gpu'
+work_dir = './work_dirs/fcos_r50_caffe_fpn_gn_fp16_1x_1gpu'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

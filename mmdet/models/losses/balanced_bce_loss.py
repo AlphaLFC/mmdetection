@@ -30,8 +30,9 @@ def balanced_bce_with_logits_loss(pred, label,
                                   ohem_pos_ratio=0.5,
                                   reduction='mean'):
     assert reduction in ['mean', 'sum'], "'none' mode not supported in this loss."
+    # assert pred.shape == label.shape
     flattened_pred = pred.flatten()
-    flattened_label = label.flatten().float()
+    flattened_label = F.one_hot(label, num_classes=81)[..., 1:].flatten().float()
     pos_inds = flattened_label.nonzero().reshape(-1).cpu()
     neg_inds = (flattened_label == 0).nonzero().reshape(-1).cpu()
     rand_neg_num = max(
