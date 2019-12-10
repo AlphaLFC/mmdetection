@@ -30,10 +30,13 @@ model = dict(
         feat_channels=256,
         strides=[8, 16, 32, 64, 128],
         loss_cls=dict(
-            type='FocalLoss',
-            use_sigmoid=True,
-            gamma=2.0,
-            alpha=0.25,
+            type='BalancedBCEWithLogitsLoss',
+            rand_neg_ratio=3,
+            least_neg_percent=0.05,
+            use_ohem=True,
+            ohem_neg_ratio=1,
+            ohem_pos_ratio=0.5,
+            reduction='mean',
             loss_weight=1.0),
         loss_bbox=dict(type='GIoULoss', loss_weight=1.0),
         loss_centerness=dict(

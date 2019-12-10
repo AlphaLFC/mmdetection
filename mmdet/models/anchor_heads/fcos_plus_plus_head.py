@@ -11,7 +11,7 @@ INF = 1e8
 
 
 @HEADS.register_module
-class FCOSPlusHead(nn.Module):
+class FCOSPlusPlusHead(nn.Module):
 
     def __init__(self,
                  num_classes,
@@ -34,7 +34,7 @@ class FCOSPlusHead(nn.Module):
                      loss_weight=1.0),
                  conv_cfg=None,
                  norm_cfg=dict(type='GN', num_groups=32, requires_grad=True)):
-        super(FCOSPlusHead, self).__init__()
+        super(FCOSPlusPlusHead, self).__init__()
 
         self.num_classes = num_classes
         self.cls_out_channels = num_classes - 1
@@ -55,6 +55,7 @@ class FCOSPlusHead(nn.Module):
     def _init_layers(self):
         self.cls_convs = nn.ModuleList()
         self.reg_convs = nn.ModuleList()
+        self.iou_convs = nn.ModuleList()
         for i in range(self.stacked_convs):
             chn = self.in_channels if i == 0 else self.feat_channels
             self.cls_convs.append(
@@ -77,12 +78,28 @@ class FCOSPlusHead(nn.Module):
                     conv_cfg=self.conv_cfg,
                     norm_cfg=self.norm_cfg,
                     bias=self.norm_cfg is None))
-        self.fcos_cls = nn.Conv2d(
-            self.feat_channels, self.cls_out_channels, 3, padding=1)
-        self.fcos_reg = nn.Conv2d(self.feat_channels, 4, 3, padding=1)
-        self.fcos_centerness = nn.Conv2d(self.feat_channels, 1, 3, padding=1)
+            self.iou_convs.append(
+                ConvModule(
+                    chn,
+                    self.feat_channels,
+                    3,
+                    stride=1,
+                    padding=1,
+                    conv_cfg=self.conv_cfg,
+                    norm_cfg=self.norm_cfg,
+                    bias=self.norm_cfg is None))
 
-        self.scales = nn.ModuleList([Scale(1.0) for _ in self.strides])
+        self.fcos_clses = nn.ModuleList(
+            [nn.Conv2d(self.feat_channels, self.cls_out_channels, 3, padding=1) for _ in self.strides]
+        )
+        self.fcos_regs = nn.ModuleList(
+            [nn.Conv2d(self.feat_channels, 4, 3, padding=1) for _ in self.strides]
+        )
+        self.fcos_ious = nn.ModuleList(
+            [nn.Conv2d(self.feat_channels, 1, 3, padding=1) for _ in self.strides]
+        )
+
+        # self.scales = nn.ModuleList([Scale(1.0) for _ in self.strides])
 
     def init_weights(self):
         for m in self.cls_convs:
@@ -90,41 +107,44 @@ class FCOSPlusHead(nn.Module):
         for m in self.reg_convs:
             normal_init(m.conv, std=0.01)
         bias_cls = bias_init_with_prob(0.01)
-        normal_init(self.fcos_cls, std=0.01, bias=bias_cls)
-        normal_init(self.fcos_reg, std=0.01)
-        normal_init(self.fcos_centerness, std=0.01)
+        normal_init(self.fcos_clses, std=0.01, bias=bias_cls)
+        normal_init(self.fcos_regs, std=0.01)
+        normal_init(self.fcos_reg_vars, std=0.001)
 
     def forward(self, feats):
-        return multi_apply(self.forward_single, feats, self.scales, self.strides)
+        # return multi_apply(self.forward_single, feats, self.scales, self.strides)
+        return multi_apply(self.forward_single, feats, self.fcos_clses, self.fcos_regs, self.fcos_ious, self.strides)
 
-    def forward_single(self, x, scale, stride):
+    def forward_single(self, x, fcos_cls, fcos_reg, fcos_iou, stride):
         cls_feat = x
         reg_feat = x
+        iou_feat = x
 
         for cls_layer in self.cls_convs:
             cls_feat = cls_layer(cls_feat)
-        cls_score = self.fcos_cls(cls_feat)
+        cls_score = fcos_cls(cls_feat)
 
         for reg_layer in self.reg_convs:
             reg_feat = reg_layer(reg_feat)
-        # move centerness to reg tower
-        centerness = self.fcos_centerness(reg_feat)
-        # scale the bbox_pred of different level
-        # float to avoid overflow when enabling FP16
-        bbox_pred = scale(self.fcos_reg(reg_feat)).float() * stride
-        return cls_score, bbox_pred, centerness
+        bbox_pred = fcos_reg(reg_feat).float() * stride
 
-    @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'centernesses'))
+        for iou_layer in self.iou_convs:
+            iou_feat = iou_layer(iou_feat)
+        iou_pred = fcos_iou(iou_feat)
+
+        return cls_score, bbox_pred, iou_pred
+
+    @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'iou_preds'))
     def loss(self,
              cls_scores,
              bbox_preds,
-             centernesses,
+             iou_preds,
              gt_bboxes,
              gt_labels,
              img_metas,
              cfg,
              gt_bboxes_ignore=None):
-        assert len(cls_scores) == len(bbox_preds) == len(centernesses)
+        assert len(cls_scores) == len(bbox_preds) == len(iou_preds)
         featmap_sizes = [featmap.size()[-2:] for featmap in cls_scores]
         all_level_points = self.get_points(featmap_sizes, bbox_preds[0].dtype,
                                            bbox_preds[0].device)
@@ -141,13 +161,13 @@ class FCOSPlusHead(nn.Module):
             bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
             for bbox_pred in bbox_preds
         ]
-        flatten_centerness = [
-            centerness.permute(0, 2, 3, 1).reshape(-1)
-            for centerness in centernesses
+        flatten_iou_preds = [
+            iou_pred.permute(0, 2, 3, 1).reshape(-1)
+            for iou_pred in iou_preds
         ]
         flatten_cls_scores = torch.cat(flatten_cls_scores)
         flatten_bbox_preds = torch.cat(flatten_bbox_preds)
-        flatten_centerness = torch.cat(flatten_centerness)
+        flatten_iou_preds = torch.cat(flatten_iou_preds)
         flatten_labels = torch.cat(labels)
         flatten_bbox_targets = torch.cat(bbox_targets)
         # repeat points to align with bbox_preds
@@ -161,37 +181,34 @@ class FCOSPlusHead(nn.Module):
             avg_factor=num_pos + num_imgs)  # avoid num_pos is 0
 
         pos_bbox_preds = flatten_bbox_preds[pos_inds]
-        pos_centerness = flatten_centerness[pos_inds]
+        pos_iou_preds = flatten_iou_preds[pos_inds]
 
         if num_pos > 0:
             pos_bbox_targets = flatten_bbox_targets[pos_inds]
             pos_centerness_targets = self.centerness_target(pos_bbox_targets)
             pos_points = flatten_points[pos_inds]
             pos_decoded_bbox_preds = distance2bbox(pos_points, pos_bbox_preds)
-            pos_decoded_target_preds = distance2bbox(pos_points,
+            pos_decoded_bbox_targets = distance2bbox(pos_points,
                                                      pos_bbox_targets)
-            # centerness weighted iou loss
+            # centerness weighted loss
             loss_bbox = self.loss_bbox(
                 pos_decoded_bbox_preds,
-                pos_decoded_target_preds,
+                pos_decoded_bbox_targets,
+                pos_bbox_pred_vars,
                 weight=pos_centerness_targets,
                 avg_factor=pos_centerness_targets.sum())
-            loss_centerness = self.loss_centerness(pos_centerness,
-                                                   pos_centerness_targets)
         else:
             loss_bbox = pos_bbox_preds.sum()
-            loss_centerness = pos_centerness.sum()
 
         return dict(
             loss_cls=loss_cls,
-            loss_bbox=loss_bbox,
-            loss_centerness=loss_centerness)
+            loss_bbox=loss_bbox)
 
-    @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'centernesses'))
+    @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'bbox_pred_vars'))
     def get_bboxes(self,
                    cls_scores,
                    bbox_preds,
-                   centernesses,
+                   bbox_pred_vars,
                    img_metas,
                    cfg,
                    rescale=None):
@@ -209,13 +226,13 @@ class FCOSPlusHead(nn.Module):
             bbox_pred_list = [
                 bbox_preds[i][img_id].detach() for i in range(num_levels)
             ]
-            centerness_pred_list = [
-                centernesses[i][img_id].detach() for i in range(num_levels)
+            bbox_pred_var_list = [
+                bbox_pred_vars[i][img_id].detach() for i in range(num_levels)
             ]
             img_shape = img_metas[img_id]['img_shape']
             scale_factor = img_metas[img_id]['scale_factor']
             det_bboxes = self.get_bboxes_single(cls_score_list, bbox_pred_list,
-                                                centerness_pred_list,
+                                                bbox_pred_var_list,
                                                 mlvl_points, img_shape,
                                                 scale_factor, cfg, rescale)
             result_list.append(det_bboxes)
@@ -362,15 +379,8 @@ class FCOSPlusHead(nn.Module):
         bottom = gt_bboxes[..., 3] - ys
         bbox_targets = torch.stack((left, top, right, bottom), -1)
 
-        # condition1: inside a gt bbox, center sampling
-        quater_ws = (gt_bboxes[..., 2] - gt_bboxes[..., 0]) / 4
-        quater_hs = (gt_bboxes[..., 3] - gt_bboxes[..., 1]) / 4
-        left_center = left - quater_ws
-        right_center = right - quater_ws
-        top_center = top - quater_hs
-        bottom_center = bottom - quater_hs
-        bbox_targets_center = torch.stack((left_center, top_center, right_center, bottom_center), -1)
-        inside_gt_bbox_mask = bbox_targets_center.min(-1)[0] > 0
+        # condition1: inside a gt bbox
+        inside_gt_bbox_mask = bbox_targets.min(-1)[0] > 0
 
         # condition2: limit the regression range for each location
         max_regress_distance = bbox_targets.max(-1)[0]
