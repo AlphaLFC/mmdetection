@@ -36,7 +36,7 @@ def balanced_bce_with_logits_loss(pred, label,
     neg_inds = (flattened_label == 0).nonzero().reshape(-1).cpu()
     rand_neg_num = max(
         int(len(pos_inds) * rand_neg_ratio),
-        int(flattened_label.nelements() * least_neg_percent)
+        int(flattened_label.nelement() * least_neg_percent)
     )
     if use_ohem:
         ohem_neg_num = int(len(pos_inds) * ohem_neg_ratio)
