@@ -38,7 +38,7 @@ model = dict(
             num_classes=81,
             reduction='mean',
             loss_weight=1.0),
-        loss_bbox=dict(type='GIoULoss', loss_weight=1.0),
+        loss_bbox=dict(type='GIoULoss', loss_weight=2.0),
         loss_centerness=dict(
             type='DualFocalLoss',
             balance_sample=False,
@@ -113,7 +113,7 @@ data = dict(
 # optimizer
 optimizer = dict(
     type='SGD',
-    lr=0.01,
+    lr=0.005,
     momentum=0.9,
     weight_decay=0.0001,
     paramwise_options=dict(bias_lr_mult=2., bias_decay_mult=0.))

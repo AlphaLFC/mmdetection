@@ -43,7 +43,7 @@ def balanced_dual_focal_loss(pred, label, neg_pos_ratio=4, least_neg_pct=0.05, r
     if reduction == 'none':
         return loss
     elif reduction == 'mean':
-        return loss.mean()
+        return loss.sum() / mask.sum()
     else:
         return loss.sum()
 
