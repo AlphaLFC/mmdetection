@@ -18,6 +18,7 @@ from ..registry import LOSSES
 
 def dual_focal_loss(pred, label, reduction='mean'):
     assert reduction in ['none', 'mean', 'sum']
+    label = label.type_as(pred)
     loss = torch.abs(label - pred) + F.binary_cross_entropy_with_logits(pred, label, reduction='none')
     if reduction == 'none':
         return loss
@@ -34,6 +35,7 @@ def _random_mask(tensor, percent):
 
 def balanced_dual_focal_loss(pred, label, neg_pos_ratio=4, least_neg_pct=0.05, reduction='mean'):
     assert reduction in ['none', 'mean', 'sum']
+    label = label.type_as(pred)
     mask_pos = (label > 0).float()
     rand_pct = mask_pos.sum() / mask_pos.nelement()
     mask = 1.0 + ((_random_mask(label, rand_pct * (neg_pos_ratio + 1)).clamp(least_neg_pct) + mask_pos) > 0).float()
