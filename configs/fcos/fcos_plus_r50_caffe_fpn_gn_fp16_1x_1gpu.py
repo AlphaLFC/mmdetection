@@ -30,17 +30,21 @@ model = dict(
         feat_channels=256,
         strides=[8, 16, 32, 64, 128],
         loss_cls=dict(
-            type='BalancedBCEWithLogitsLoss',
-            rand_neg_ratio=4,
-            least_neg_percent=0.05,
-            use_ohem=True,
-            ohem_neg_ratio=2,
-            ohem_pos_ratio=0.5,
+            type='DualFocalLoss',
+            balance_sample=True,
+            neg_pos_ratio=4,
+            least_neg_pct=0.05,
+            use_one_hot_label=True,
+            num_classes=81,
             reduction='mean',
-            loss_weight=80),
+            loss_weight=1.0),
         loss_bbox=dict(type='GIoULoss', loss_weight=1.0),
         loss_centerness=dict(
-            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)))
+            type='DualFocalLoss',
+            balance_sample=False,
+            use_one_hot_label=False,
+            reduction='mean',
+            loss_weight=1.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -120,7 +124,7 @@ lr_config = dict(
     warmup='constant',
     warmup_iters=500,
     warmup_ratio=1.0 / 3,
-    step=[5, 8, 11])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -135,7 +139,7 @@ total_epochs = 12
 device_ids = range(1)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/fcos_plus_mstrain_r50_caffe_fpn_gn_fp16_1x_1gpu'
+work_dir = './work_dirs/fcos_plus_r50_caffe_fpn_gn_fp16_1x_1gpu'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

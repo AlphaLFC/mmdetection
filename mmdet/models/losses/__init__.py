@@ -8,6 +8,7 @@ from .iou_loss import BoundedIoULoss, IoULoss, bounded_iou_loss, iou_loss
 from .mse_loss import MSELoss, mse_loss
 from .smooth_l1_loss import SmoothL1Loss, smooth_l1_loss
 from .balanced_bce_loss import balanced_bce_with_logits_loss, BalancedBCEWithLogitsLoss
+from .dual_focal_loss import dual_focal_loss, balanced_dual_focal_loss, DualFocalLoss
 from .utils import reduce_loss, weight_reduce_loss, weighted_loss
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     'BalancedL1Loss', 'mse_loss', 'MSELoss', 'iou_loss', 'bounded_iou_loss',
     'IoULoss', 'BoundedIoULoss', 'GHMC', 'GHMR', 'reduce_loss',
     'weight_reduce_loss', 'weighted_loss', 'balanced_bce_with_logits_loss',
-    'BalancedBCEWithLogitsLoss'
+    'BalancedBCEWithLogitsLoss', 'dual_focal_loss', 'balanced_dual_focal_loss',
+    'DualFocalLoss'
 ]
